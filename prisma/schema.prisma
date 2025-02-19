@@ -8,16 +8,20 @@ datasource db {
 }
 
 model UserChatHistory {
-  id         String   @id @default(uuid())
-  userId     String  
-  message    String
-  response   String
-  timestamp  DateTime @default(now())
+  id          String   @id @default(uuid()) // Unique ID
+  userId      String   // Identifier for the user
+  message     String   // User input message
+  response    String   // AI-generated response
+  modelUsed   String   // Name of the LLM model used
+  starred     Boolean  @default(false) // Whether this entry is starred
+  createdAt   DateTime @default(now()) // Timestamp
 }
 
 model StarredPrompts {
-  id         String   @id @default(uuid())
-  userId     String   
-  prompt     String   @unique 
-  createdAt  DateTime @default(now())
+  id          String   @id @default(uuid()) // Unique ID
+  userId      String   // Identifier for the user
+  prompt      String   // The user’s input
+  response    String   // The AI’s response
+  modelUsed   String   // The LLM model that generated the response
+  starredAt   DateTime @default(now()) // Timestamp when starred
 }
