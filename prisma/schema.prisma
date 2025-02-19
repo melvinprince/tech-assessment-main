@@ -15,13 +15,15 @@ model UserChatHistory {
   modelUsed   String   // Name of the LLM model used
   starred     Boolean  @default(false) // Whether this entry is starred
   createdAt   DateTime @default(now()) // Timestamp
+
+  starredPrompt StarredPrompts? @relation("StarredRelation") // ✅ Defines relation without specifying fields/references
 }
 
 model StarredPrompts {
-  id          String   @id @default(uuid()) // Unique ID
-  userId      String   // Identifier for the user
-  prompt      String   // The user’s input
-  response    String   // The AI’s response
-  modelUsed   String   // The LLM model that generated the response
-  starredAt   DateTime @default(now()) // Timestamp when starred
+  id                 String   @id @default(uuid()) // Unique ID
+  userId             String   // Identifier for the user
+  userChatHistoryId  String   @unique // Foreign key reference to UserChatHistory
+  starredAt          DateTime @default(now()) // Timestamp when starred
+
+  userChatHistory    UserChatHistory @relation("StarredRelation", fields: [userChatHistoryId], references: [id], onDelete: Cascade) // ✅ Define fields & references here
 }
