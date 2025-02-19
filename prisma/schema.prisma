@@ -1,0 +1,23 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model UserChatHistory {
+  id         String   @id @default(uuid())
+  userId     String  
+  message    String
+  response   String
+  timestamp  DateTime @default(now())
+}
+
+model StarredPrompts {
+  id         String   @id @default(uuid())
+  userId     String   
+  prompt     String   @unique 
+  createdAt  DateTime @default(now())
+}
