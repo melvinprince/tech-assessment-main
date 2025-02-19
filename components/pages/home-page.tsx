@@ -11,8 +11,9 @@ import { useLLMStore } from "@/store/llm-store";
 import Link from "next/link";
 import LoaderMini from "../ui/loadingMini";
 import Loader from "../ui/loading";
+import { useToast } from "@/hooks/use-toast";
 
-// Define interfaces for strong typing
+// Define interfaces
 interface ChatMessage {
   id: string;
   message: string;
@@ -31,6 +32,7 @@ interface StarredRecord {
 
 export default function HomePage() {
   const { selectedModel } = useLLMStore();
+  const { toast } = useToast(); // Using toast system
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState<string>("");
   const [loadingChat, setLoadingChat] = useState<boolean>(false);
@@ -42,12 +44,14 @@ export default function HomePage() {
     const fetchChatAndStarredMessages = async () => {
       try {
         setLoadingHistory(true);
-        console.log("Fetching chat history...");
         const chatRes = await fetch("/api/chat?userId=1");
-        if (!chatRes.ok) throw new Error("Failed to fetch chat history");
+
+        if (!chatRes.ok) {
+          throw new Error("Failed to fetch chat history");
+        }
+
         const chatData: ChatMessage[] = await chatRes.json();
 
-        console.log("Fetching starred messages...");
         const starredRes = await fetch("/api/starred?userId=1");
         const starredResult = starredRes.ok
           ? await starredRes.json()
@@ -58,16 +62,11 @@ export default function HomePage() {
           ? starredResult.response
           : [];
 
-        console.log("Fetched chat:", chatData);
-        console.log("Fetched starred messages:", starredData);
-
-        // Sort chat data by createdAt (oldest first)
         const sortedChatData = chatData.sort(
           (a, b) =>
             new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
         );
 
-        // Merge starred status: mark a chat as starred if a starred record exists whose userChatHistoryId matches msg.id.
         const updatedChatHistory = sortedChatData.map((msg) => ({
           ...msg,
           starred: starredData.some(
@@ -77,7 +76,12 @@ export default function HomePage() {
 
         setChatHistory(updatedChatHistory);
       } catch (error) {
-        console.error("Error loading chat and starred messages:", error);
+        //toast
+        toast({
+          title: "Error",
+          description: "Failed to load chat history.",
+          variant: "destructive",
+        });
       } finally {
         setLoadingHistory(false);
       }
@@ -108,11 +112,10 @@ export default function HomePage() {
       createdAt: new Date().toISOString(),
     };
 
-    // Append the new message immediately
+    // adding the new message
     setChatHistory((prev) => [...prev, userMessage]);
 
     try {
-      console.log("Sending message:", input, "with model:", selectedModel);
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -123,10 +126,11 @@ export default function HomePage() {
         }),
       });
 
-      if (!response.ok) throw new Error("Failed to save message");
+      if (!response.ok) {
+        throw new Error("Failed to save message");
+      }
 
       const data = await response.json();
-      console.log("Received AI response:", data);
 
       // Update the corresponding message with the AI response
       setChatHistory((prev) =>
@@ -135,21 +139,25 @@ export default function HomePage() {
         )
       );
     } catch (error) {
-      console.error("Error sending message:", error);
+      //toast
+      toast({
+        title: "Error",
+        description: "Failed to send message. Please try again.",
+        variant: "destructive",
+      });
     }
 
     setLoadingChat(false);
     setInput("");
   };
 
-  // Handle toggling star status using userChatHistoryId (which is msg.id)
+  // Handle toggling star status using userChatHistoryId
   const handleToggleStarMessage = async (
     userChatHistoryId: string,
     currentlyStarred: boolean
   ) => {
     try {
       const payload = { userId: "1", userChatHistoryId };
-      console.log("Sending star/unstar request with payload:", payload);
 
       const res = await fetch("/api/starred", {
         method: currentlyStarred ? "DELETE" : "POST",
@@ -162,9 +170,6 @@ export default function HomePage() {
         throw new Error(errorData.error || "Failed to toggle star");
       }
 
-      console.log("Message star status updated successfully");
-
-      // Re-fetch starred messages and update chatHistory starred status
       const starredRes = await fetch("/api/starred?userId=1");
       const starredResult = starredRes.ok
         ? await starredRes.json()
@@ -182,7 +187,12 @@ export default function HomePage() {
         }))
       );
     } catch (error) {
-      console.error("Error toggling star:", error);
+      //toast
+      toast({
+        title: "Error",
+        description: "Failed to update favorite status.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -207,46 +217,44 @@ export default function HomePage() {
         {loadingHistory ? (
           <Loader />
         ) : (
-          <>
-            {chatHistory.map((entry) => (
-              <div key={entry.id} className="flex flex-col space-y-2">
-                {entry.message && (
-                  <div className="flex justify-end">
-                    <div className="bg-blue-500 text-white p-2 rounded-lg max-w-[75%]">
-                      <Markdown remarkPlugins={[remarkGfm]}>
-                        {entry.message}
-                      </Markdown>
-                    </div>
+          chatHistory.map((entry) => (
+            <div key={entry.id} className="flex flex-col space-y-2">
+              {entry.message && (
+                <div className="flex justify-end">
+                  <div className="bg-blue-500 text-white p-2 rounded-lg max-w-[75%]">
+                    <Markdown remarkPlugins={[remarkGfm]}>
+                      {entry.message}
+                    </Markdown>
                   </div>
-                )}
-                {entry.response && (
-                  <div className="flex justify-start items-center">
-                    <div
-                      className={`p-2 rounded-lg max-w-[75%] transition-all ${
-                        entry.starred
-                          ? "bg-yellow-300 text-black"
-                          : "bg-gray-200 text-black"
-                      }`}
-                    >
-                      <Markdown remarkPlugins={[remarkGfm]}>
-                        {entry.response}
-                      </Markdown>
-                    </div>
-                    <button
-                      onClick={() =>
-                        handleToggleStarMessage(entry.id, entry.starred)
-                      }
-                      className={`ml-2 ${
-                        entry.starred ? "text-yellow-500" : "text-gray-500"
-                      } hover:text-yellow-500`}
-                    >
-                      <Star size={18} />
-                    </button>
+                </div>
+              )}
+              {entry.response && (
+                <div className="flex justify-start items-center">
+                  <div
+                    className={`p-2 rounded-lg max-w-[75%] transition-all ${
+                      entry.starred
+                        ? "bg-yellow-300 text-black"
+                        : "bg-gray-200 text-black"
+                    }`}
+                  >
+                    <Markdown remarkPlugins={[remarkGfm]}>
+                      {entry.response}
+                    </Markdown>
                   </div>
-                )}
-              </div>
-            ))}
-          </>
+                  <button
+                    onClick={() =>
+                      handleToggleStarMessage(entry.id, entry.starred)
+                    }
+                    className={`ml-2 ${
+                      entry.starred ? "text-yellow-500" : "text-gray-500"
+                    } hover:text-yellow-500`}
+                  >
+                    <Star size={18} />
+                  </button>
+                </div>
+              )}
+            </div>
+          ))
         )}
         <div ref={chatEndRef} />
       </div>
@@ -264,13 +272,14 @@ export default function HomePage() {
             placeholder="Type your message here."
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            disabled={loadingChat}
+            className="flex-grow"
           />
-
           {loadingChat ? (
             <LoaderMini />
           ) : (
             <Button type="submit" disabled={loadingChat || !input.length}>
-              Send message
+              Send
             </Button>
           )}
         </form>

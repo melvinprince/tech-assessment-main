@@ -1,8 +1,10 @@
 "use client";
 import Link from "next/link";
 import React, { useEffect, useState } from "react";
+import { useToast } from "@/hooks/use-toast"; // Import toast hook
 
 export default function StarredPage() {
+  const { toast } = useToast(); // Using toast system
   const [starredChats, setStarredChats] = useState<
     {
       id: string;
@@ -26,15 +28,19 @@ export default function StarredPage() {
         const data = await res.json();
         // The API returns an object with a property "response"
         const starredData = data.response || [];
-        console.log("Fetched starred messages:", starredData);
         setStarredChats(starredData);
       } catch (error) {
-        console.error("Error fetching starred messages:", error);
+        //toast
+        toast({
+          title: "Error",
+          description: "Failed to load starred messages.",
+          variant: "destructive",
+        });
       }
     };
 
     fetchStarredChats();
-  }, []);
+  }, [toast]);
 
   // Handle un-starring a message
   const handleUnstar = async (userChatHistoryId: string) => {
@@ -50,12 +56,16 @@ export default function StarredPage() {
         throw new Error(errorData.error || "Failed to unstar message");
       }
 
-      console.log("Message unstarred successfully");
       setStarredChats((prev) =>
         prev.filter((chat) => chat.userChatHistoryId !== userChatHistoryId)
       );
     } catch (error) {
-      console.error("Error un-starring message:", error);
+      //toast
+      toast({
+        title: "Error",
+        description: "Failed to unstar message. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
