@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
     console.log("Found starred messages:", starredMessages);
 
     return NextResponse.json({ response: starredMessages }, { status: 200 });
-  } catch (error: any) {
+  } catch (error) {
     const errorMessage =
       error && error.message ? error.message : "unknown error";
     console.error("Error fetching starred messages:", errorMessage);

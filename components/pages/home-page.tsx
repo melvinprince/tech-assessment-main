@@ -9,39 +9,52 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useLLMStore } from "@/store/llm-store";
 import Link from "next/link";
+import LoaderMini from "../ui/loadingMini";
+import Loader from "../ui/loading";
+
+// Define interfaces for strong typing
+interface ChatMessage {
+  id: string;
+  message: string;
+  response: string;
+  modelUsed: string;
+  starred: boolean;
+  createdAt: string;
+}
+
+interface StarredRecord {
+  id: string;
+  userChatHistoryId: string;
+  starredAt: string;
+  userChatHistory?: ChatMessage;
+}
 
 export default function HomePage() {
   const { selectedModel } = useLLMStore();
-  const [chatHistory, setChatHistory] = useState<
-    {
-      id: string;
-      message: string;
-      response: string;
-      modelUsed: string;
-      starred: boolean;
-      createdAt: string;
-    }[]
-  >([]);
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState<string>("");
-  const [loading, setLoading] = useState<boolean>(false);
+  const [loadingChat, setLoadingChat] = useState<boolean>(false);
+  const [loadingHistory, setLoadingHistory] = useState<boolean>(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // Fetch chat history & starred messages on page load
   useEffect(() => {
     const fetchChatAndStarredMessages = async () => {
       try {
+        setLoadingHistory(true);
         console.log("Fetching chat history...");
         const chatRes = await fetch("/api/chat?userId=1");
         if (!chatRes.ok) throw new Error("Failed to fetch chat history");
-        const chatData = await chatRes.json();
+        const chatData: ChatMessage[] = await chatRes.json();
 
         console.log("Fetching starred messages...");
         const starredRes = await fetch("/api/starred?userId=1");
-        // starredRes returns { response: starredMessages }
         const starredResult = starredRes.ok
           ? await starredRes.json()
           : { response: [] };
-        const starredData = Array.isArray(starredResult.response)
+        const starredData: StarredRecord[] = Array.isArray(
+          starredResult.response
+        )
           ? starredResult.response
           : [];
 
@@ -50,21 +63,23 @@ export default function HomePage() {
 
         // Sort chat data by createdAt (oldest first)
         const sortedChatData = chatData.sort(
-          (a: any, b: any) =>
+          (a, b) =>
             new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
         );
 
         // Merge starred status: mark a chat as starred if a starred record exists whose userChatHistoryId matches msg.id.
-        const updatedChatHistory = sortedChatData.map((msg: any) => ({
+        const updatedChatHistory = sortedChatData.map((msg) => ({
           ...msg,
           starred: starredData.some(
-            (starred: any) => starred.userChatHistoryId === msg.id
+            (starred) => starred.userChatHistoryId === msg.id
           ),
         }));
 
         setChatHistory(updatedChatHistory);
       } catch (error) {
         console.error("Error loading chat and starred messages:", error);
+      } finally {
+        setLoadingHistory(false);
       }
     };
 
@@ -81,10 +96,10 @@ export default function HomePage() {
   // Handle sending a new message
   const handleSendMessage = async () => {
     if (!input.trim()) return;
-    setLoading(true);
+    setLoadingChat(true);
 
     const messageId = Date.now().toString();
-    const userMessage = {
+    const userMessage: ChatMessage = {
       id: messageId,
       message: input,
       response: "",
@@ -123,11 +138,11 @@ export default function HomePage() {
       console.error("Error sending message:", error);
     }
 
-    setLoading(false);
+    setLoadingChat(false);
     setInput("");
   };
 
-  // Handle toggling star status using userChatHistoryId
+  // Handle toggling star status using userChatHistoryId (which is msg.id)
   const handleToggleStarMessage = async (
     userChatHistoryId: string,
     currentlyStarred: boolean
@@ -154,7 +169,7 @@ export default function HomePage() {
       const starredResult = starredRes.ok
         ? await starredRes.json()
         : { response: [] };
-      const starredData = Array.isArray(starredResult.response)
+      const starredData: StarredRecord[] = Array.isArray(starredResult.response)
         ? starredResult.response
         : [];
 
@@ -162,7 +177,7 @@ export default function HomePage() {
         prev.map((msg) => ({
           ...msg,
           starred: starredData.some(
-            (starred: any) => starred.userChatHistoryId === msg.id
+            (starred) => starred.userChatHistoryId === msg.id
           ),
         }))
       );
@@ -189,44 +204,50 @@ export default function HomePage() {
       </div>
 
       <div className="relative max-w-xl w-full p-4 border rounded-md flex flex-col h-96 overflow-y-auto">
-        {chatHistory.map((entry) => (
-          <div key={entry.id} className="flex flex-col space-y-2">
-            {entry.message && (
-              <div className="flex justify-end">
-                <div className="bg-blue-500 text-white p-2 rounded-lg max-w-[75%]">
-                  <Markdown remarkPlugins={[remarkGfm]}>
-                    {entry.message}
-                  </Markdown>
-                </div>
+        {loadingHistory ? (
+          <Loader />
+        ) : (
+          <>
+            {chatHistory.map((entry) => (
+              <div key={entry.id} className="flex flex-col space-y-2">
+                {entry.message && (
+                  <div className="flex justify-end">
+                    <div className="bg-blue-500 text-white p-2 rounded-lg max-w-[75%]">
+                      <Markdown remarkPlugins={[remarkGfm]}>
+                        {entry.message}
+                      </Markdown>
+                    </div>
+                  </div>
+                )}
+                {entry.response && (
+                  <div className="flex justify-start items-center">
+                    <div
+                      className={`p-2 rounded-lg max-w-[75%] transition-all ${
+                        entry.starred
+                          ? "bg-yellow-300 text-black"
+                          : "bg-gray-200 text-black"
+                      }`}
+                    >
+                      <Markdown remarkPlugins={[remarkGfm]}>
+                        {entry.response}
+                      </Markdown>
+                    </div>
+                    <button
+                      onClick={() =>
+                        handleToggleStarMessage(entry.id, entry.starred)
+                      }
+                      className={`ml-2 ${
+                        entry.starred ? "text-yellow-500" : "text-gray-500"
+                      } hover:text-yellow-500`}
+                    >
+                      <Star size={18} />
+                    </button>
+                  </div>
+                )}
               </div>
-            )}
-            {entry.response && (
-              <div className="flex justify-start items-center">
-                <div
-                  className={`p-2 rounded-lg max-w-[75%] transition-all ${
-                    entry.starred
-                      ? "bg-yellow-300 text-black"
-                      : "bg-gray-200 text-black"
-                  }`}
-                >
-                  <Markdown remarkPlugins={[remarkGfm]}>
-                    {entry.response}
-                  </Markdown>
-                </div>
-                <button
-                  onClick={() =>
-                    handleToggleStarMessage(entry.id, entry.starred)
-                  }
-                  className={`ml-2 ${
-                    entry.starred ? "text-yellow-500" : "text-gray-500"
-                  } hover:text-yellow-500`}
-                >
-                  <Star size={18} />
-                </button>
-              </div>
-            )}
-          </div>
-        ))}
+            ))}
+          </>
+        )}
         <div ref={chatEndRef} />
       </div>
 
@@ -244,9 +265,14 @@ export default function HomePage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
           />
-          <Button type="submit" disabled={loading || !input.length}>
-            {loading ? "Sending..." : "Send message"}
-          </Button>
+
+          {loadingChat ? (
+            <LoaderMini />
+          ) : (
+            <Button type="submit" disabled={loadingChat || !input.length}>
+              Send message
+            </Button>
+          )}
         </form>
       </div>
     </div>

@@ -11,8 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useLLMStore } from "@/store/llm-store";
 
-// Modify as needed
-const options = ["Model 1", "Model 2", "Model 3"];
+const options = ["gpt2-medium", "Model 2", "Model 3"];
 
 export function ModelOptions() {
   const { selectedModel, setSelectedModel } = useLLMStore();
